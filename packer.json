@@ -1,0 +1,81 @@
+{
+  "_comment": "Builld with `packer build packer.json`",
+  "variables": {
+    "authorized_keys_dst_path": "/root/.ssh/authorized_keys",
+    "authorized_keys_src_path": "file/authorized_keys",
+    "cpus": "2",
+    "disk_size": "16384",
+    "headless": "true",
+    "iso_checksum_type": "sha256",
+    "iso_checksum": "714acc0aefb32b7d51b515e25546835e55a90da9fb00417fbee2d03a62801efd",
+    "iso_name": "CentOS-7-x86_64-Minimal-1804.iso",
+    "iso_url": "http://mirror.it.ubc.ca/centos/7/isos/x86_64/CentOS-7-x86_64-Minimal-1804.iso",
+    "kickstart": "ks.cfg",
+    "memory": "8192",
+    "ssh_password": "Passw0rd",
+    "ssh_username": "root",
+    "update": "true",
+    "vm_name": "Bacula-9-amd64",
+    "vm_version": "13",
+    "vmware_guest_os_type": "centos7-64"
+  },
+  "builders": [{
+    "type": "vmware-iso",
+    "boot_command": "<tab> text ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/{{ user `kickstart` }}<enter>",
+    "disk_size": "{{ user `disk_size` }}",
+    "disk_type_id": "0",
+    "guest_os_type": "{{ user `vmware_guest_os_type` }}",
+    "headless": "{{ user `headless` }}",
+    "http_directory": "http",
+    "iso_checksum_type": "{{ user `iso_checksum_type` }}",
+    "iso_checksum": "{{ user `iso_checksum` }}",
+    "iso_url": "{{ user `iso_url` }}",
+    "network_adapter_type": "vmxnet3",
+    "shutdown_command": "poweroff",
+    "ssh_password": "{{ user `ssh_password` }}",
+    "ssh_username": "{{ user `ssh_username` }}",
+    "ssh_wait_timeout": "120m",
+    "tools_upload_flavor": "linux",
+    "version": "{{ user `vm_version` }}",
+    "vm_name": "{{ user `vm_name` }} ",
+    "vmx_data": {
+      "cpuid.coresPerSocket": 2,
+      "memsize": "{{ user `memory` }}",
+      "numvcpus": "{{ user `cpus` }}"
+    }
+  }],
+  "provisioners": [{
+      "type": "shell",
+      "expect_disconnect": true,
+      "execute_command": "{{ .Vars }} sudo -E -S sh '{{ .Path }}'",
+      "environment_vars": [
+        "UPDATE={{ user `update` }}",
+        "SSH_USERNAME={{ user `ssh_username` }}",
+        "SSH_PASSWORD={{ user `ssh_password` }}",
+        "SSH_PUBLIC_KEY_FILE=http://{{ .HTTPIP }}:{{ .HTTPPort }}/{{ user `ssh_public_key_file` }}"
+      ],
+      "scripts": [
+        "script/update.sh",
+        "script/vmware.sh",
+        "script/motd.sh",
+        "script/provision.sh",
+        "script/bacula.sh",
+        "script/baculum.sh",
+        "script/cleanup.sh"
+      ]
+    },
+    {
+      "type": "file",
+      "source": "{{ user `authorized_keys_src_path` }}",
+      "destination": "{{ user `authorized_keys_dst_path` }}"
+    }
+  ],
+  "post-processors": [{
+    "type": "shell-local",
+    "environment_vars": ["VM_NAME={{ user `vm_name` }}"],
+    "inline": [
+      "mkdir -p $PWD/$VM_NAME",
+      "ovftool \"$PWD/output-vmware-iso/$VM_NAME .vmx\" $PWD/$VM_NAME.ova"
+    ]
+  }]
+}
